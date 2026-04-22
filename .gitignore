@@ -1,0 +1,39 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Database
+plywoodpro.db
+plywoodpro.db-journal
+plywoodpro.db-wal
+plywoodpro.db-shm
+backups/
+
+# Graphify
+graphify-out/
+.graphifyignore
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+.tox/
