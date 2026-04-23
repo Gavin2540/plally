@@ -8,6 +8,7 @@ import os
 import traceback
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
+from tkinter import filedialog
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -80,10 +81,21 @@ def export_invoice_pdf(voucher_id: int) -> tuple[bool, str]:
         # Ensure exports directory exists
         os.makedirs(EXPORTS_DIR, exist_ok=True)
 
-        # Build filename
+        # Build default filename
         safe_no = v['voucher_no'].replace('/', '-').replace('\\', '-')
         filename = f"{safe_no}.pdf"
-        filepath = os.path.join(EXPORTS_DIR, filename)
+
+        # Ask user where to save (defaults to Documents)
+        default_dir = str(Path.home() / 'Documents')
+        filepath = filedialog.asksaveasfilename(
+            title="Save Invoice PDF",
+            initialdir=default_dir,
+            initialfile=filename,
+            defaultextension=".pdf",
+            filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")],
+        )
+        if not filepath:
+            return False, "Export cancelled by user."
 
         # Build the PDF
         _build_pdf(filepath, v, party, items, company)

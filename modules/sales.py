@@ -368,3 +368,357 @@ def _update_stock(conn, item_id: int, godown_id: int, qty_change: Decimal):
             "INSERT INTO stock (item_id, godown_id, qty) VALUES (?, ?, ?)",
             (item_id, godown_id, _r2(qty_change))
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  SALES ORDER — CREATE / CONFIRM / CONVERT
+# ═══════════════════════════════════════════════════════════════════════
+
+def create_sales_order(header: dict, line_items: list) -> tuple[bool, str, int]:
+    """
+    Create a Sales Order in Draft status.
+    Orders have no GST columns — only Subtotal, Discount, Grand Total.
+    """
+    conn = get_connection()
+    try:
+        date_str = header.get('date', '')
+        voucher_no = generate_voucher_no(conn, 'Sales Order', date_str)
+
+        total_amount = Decimal("0")
+        discount_amount = Decimal("0")
+        grand_total = Decimal("0")
+
+        for item in line_items:
+            qty = _d(item.get('qty', 0))
+            rate = _d(item.get('rate', 0))
+            disc_pct = _d(item.get('discount_pct', 0))
+            gross = qty * rate
+            disc = gross * disc_pct / Decimal("100")
+            line_total = gross - disc
+            total_amount += gross
+            discount_amount += disc
+            grand_total += line_total
+
+        cursor = conn.execute(
+            """INSERT INTO vouchers
+            (voucher_no, voucher_type, party_id, date, due_date, reference_no,
+             narration, total_amount, discount_amount, grand_total,
+             balance_due, status, godown_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                voucher_no, 'Sales Order', header['party_id'],
+                date_str, header.get('due_date', ''),
+                header.get('reference_no', ''), header.get('narration', ''),
+                _r2(total_amount), _r2(discount_amount),
+                _r2(grand_total), _r2(grand_total), 'Draft',
+                header.get('godown_id', 1),
+            ),
+        )
+        voucher_id = cursor.lastrowid
+
+        for item in line_items:
+            qty = _d(item.get('qty', 0))
+            rate = _d(item.get('rate', 0))
+            disc_pct = _d(item.get('discount_pct', 0))
+            gross = qty * rate
+            disc_amt = gross * disc_pct / Decimal("100")
+            line_total = gross - disc_amt
+
+            conn.execute(
+                """INSERT INTO voucher_items
+                (voucher_id, item_id, description, hsn_code, qty, unit, rate,
+                 discount_pct, discount_amount, taxable_amount,
+                 gst_rate, cgst_rate, cgst_amount, sgst_rate, sgst_amount,
+                 igst_rate, igst_amount, total_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, ?)""",
+                (
+                    voucher_id, item['item_id'], item.get('description', ''),
+                    item.get('hsn_code', ''), float(qty), item.get('unit', ''),
+                    float(rate), float(disc_pct), _r2(disc_amt),
+                    _r2(line_total), _r2(line_total),
+                ),
+            )
+
+        conn.commit()
+        return True, f"Sales Order {voucher_no} saved as Draft.", voucher_id
+
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"[PlywoodPro] Error creating sales order: {e}")
+        traceback.print_exc()
+        return False, f"Database error: {e}", 0
+    finally:
+        conn.close()
+
+
+def confirm_sales_order(voucher_id: int) -> tuple[bool, str]:
+    """Confirm a draft Sales Order."""
+    conn = get_connection()
+    try:
+        v = conn.execute(
+            "SELECT * FROM vouchers WHERE id = ? AND voucher_type = 'Sales Order'",
+            (voucher_id,)
+        ).fetchone()
+        if not v:
+            return False, "Sales Order not found."
+        if v['status'] != 'Draft':
+            return False, f"Order is already {v['status']}."
+        conn.execute(
+            "UPDATE vouchers SET status = 'Confirmed' WHERE id = ?",
+            (voucher_id,),
+        )
+        conn.commit()
+        return True, f"Sales Order {v['voucher_no']} confirmed."
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"[PlywoodPro] Error confirming sales order: {e}")
+        traceback.print_exc()
+        return False, f"Database error: {e}"
+    finally:
+        conn.close()
+
+
+def get_sales_orders(status: str = '', search: str = '') -> list:
+    """Fetch all sales orders, optionally filtered."""
+    conn = get_connection()
+    try:
+        query = """
+            SELECT v.*, p.name as party_name
+            FROM vouchers v LEFT JOIN parties p ON v.party_id = p.id
+            WHERE v.voucher_type = 'Sales Order'
+        """
+        params = []
+        if status and status != 'All':
+            query += " AND v.status = ?"
+            params.append(status)
+        if search:
+            query += " AND (v.voucher_no LIKE ? OR p.name LIKE ?)"
+            s = f"%{search}%"
+            params.extend([s, s])
+        query += " ORDER BY v.date DESC, v.id DESC"
+        rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+    except sqlite3.Error as e:
+        print(f"[PlywoodPro] Error fetching sales orders: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def convert_so_to_invoice(so_id: int) -> tuple[bool, str, int]:
+    """
+    Convert a confirmed Sales Order to a Sales Invoice.
+    Copies header + line items, marks SO as 'Converted'.
+    Returns (success, message, new_invoice_id).
+    """
+    conn = get_connection()
+    try:
+        so = conn.execute(
+            "SELECT * FROM vouchers WHERE id = ? AND voucher_type = 'Sales Order'",
+            (so_id,)
+        ).fetchone()
+        if not so:
+            return False, "Sales Order not found.", 0
+        if so['status'] not in ('Confirmed', 'Draft'):
+            return False, f"Cannot convert — order is {so['status']}.", 0
+
+        items = conn.execute(
+            "SELECT * FROM voucher_items WHERE voucher_id = ?", (so_id,)
+        ).fetchall()
+
+        date_str = so['date']
+        inv_no = generate_voucher_no(conn, 'Sales Invoice', date_str)
+
+        cursor = conn.execute(
+            """INSERT INTO vouchers
+            (voucher_no, voucher_type, party_id, date, due_date, reference_no,
+             narration, total_amount, tax_amount, discount_amount, grand_total,
+             balance_due, status, godown_id)
+            VALUES (?, 'Sales Invoice', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Draft', ?)""",
+            (
+                inv_no, so['party_id'], date_str, so['due_date'] or '',
+                so['voucher_no'], so['narration'] or '',
+                so['total_amount'], so['tax_amount'] or 0,
+                so['discount_amount'], so['grand_total'],
+                so['grand_total'], so['godown_id'] or 1,
+            ),
+        )
+        inv_id = cursor.lastrowid
+
+        for item in items:
+            conn.execute(
+                """INSERT INTO voucher_items
+                (voucher_id, item_id, description, hsn_code, qty, unit, rate,
+                 discount_pct, discount_amount, taxable_amount, gst_rate,
+                 cgst_rate, cgst_amount, sgst_rate, sgst_amount,
+                 igst_rate, igst_amount, total_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    inv_id, item['item_id'], item['description'],
+                    item['hsn_code'], item['qty'], item['unit'], item['rate'],
+                    item['discount_pct'], item['discount_amount'],
+                    item['taxable_amount'], item['gst_rate'],
+                    item['cgst_rate'], item['cgst_amount'],
+                    item['sgst_rate'], item['sgst_amount'],
+                    item['igst_rate'], item['igst_amount'],
+                    item['total_amount'],
+                ),
+            )
+
+        # Mark SO as Converted
+        conn.execute(
+            "UPDATE vouchers SET status = 'Converted' WHERE id = ?", (so_id,)
+        )
+
+        conn.commit()
+        return True, f"Converted to Sales Invoice {inv_no}.", inv_id
+
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"[PlywoodPro] Error converting SO to invoice: {e}")
+        traceback.print_exc()
+        return False, f"Database error: {e}", 0
+    finally:
+        conn.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  RECEIPTS (money received from customers)
+# ═══════════════════════════════════════════════════════════════════════
+
+def get_outstanding_invoices(party_id: int, voucher_type: str = 'Sales Invoice') -> list:
+    """
+    Fetch outstanding (unpaid/partial) invoices for a party.
+    Returns list of dicts with voucher_no, date, grand_total, paid_amount, balance_due.
+    """
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT id, voucher_no, date, grand_total, paid_amount, balance_due
+            FROM vouchers
+            WHERE party_id = ? AND voucher_type = ?
+              AND status IN ('Confirmed', 'Partial')
+              AND balance_due > 0
+            ORDER BY date ASC""",
+            (party_id, voucher_type),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except sqlite3.Error as e:
+        print(f"[PlywoodPro] Error fetching outstanding invoices: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def create_receipt(party_id: int, invoice_id: int, amount: float,
+                   mode: str, reference_no: str, date_str: str,
+                   narration: str = '') -> tuple[bool, str, int]:
+    """
+    Create a Receipt: money received from a customer.
+    - Dr: Cash/Bank
+    - Cr: Party (Sundry Debtors)
+    - Updates invoice paid_amount and balance_due
+    Returns (success, message, receipt_voucher_id).
+    """
+    conn = get_connection()
+    try:
+        # Validate invoice
+        inv = conn.execute(
+            "SELECT * FROM vouchers WHERE id = ? AND voucher_type = 'Sales Invoice'",
+            (invoice_id,)
+        ).fetchone()
+        if not inv:
+            return False, "Invoice not found.", 0
+        if _d(amount) > _d(inv['balance_due']):
+            return False, f"Amount ₹{amount} exceeds balance due ₹{inv['balance_due']}.", 0
+        if _d(amount) <= 0:
+            return False, "Amount must be greater than zero.", 0
+
+        voucher_no = generate_voucher_no(conn, 'Receipt', date_str)
+
+        # Create receipt voucher
+        cursor = conn.execute(
+            """INSERT INTO vouchers
+            (voucher_no, voucher_type, party_id, date, reference_no, narration,
+             grand_total, paid_amount, status)
+            VALUES (?, 'Receipt', ?, ?, ?, ?, ?, ?, 'Confirmed')""",
+            (voucher_no, party_id, date_str, reference_no,
+             narration or f"Receipt against {inv['voucher_no']}",
+             amount, amount),
+        )
+        rcp_id = cursor.lastrowid
+
+        # Record in payments table
+        cash_id = _get_account_id(conn, 'Cash')
+        conn.execute(
+            """INSERT INTO payments
+            (voucher_id, party_id, payment_type, mode, amount, date, reference_no, narration)
+            VALUES (?, ?, 'Receipt', ?, ?, ?, ?, ?)""",
+            (rcp_id, party_id, mode, amount, date_str, reference_no,
+             narration or f"Receipt against {inv['voucher_no']}"),
+        )
+
+        # Update invoice balance
+        new_paid = _r2(_d(inv['paid_amount']) + _d(amount))
+        new_balance = _r2(_d(inv['grand_total']) - _d(new_paid))
+        new_status = 'Paid' if new_balance <= 0.01 else 'Partial'
+        conn.execute(
+            """UPDATE vouchers SET paid_amount = ?, balance_due = ?, status = ?
+            WHERE id = ?""",
+            (new_paid, max(new_balance, 0), new_status, invoice_id),
+        )
+
+        # Journal entries: Dr Cash, Cr Debtor
+        party_account_id = _ensure_party_account(conn, party_id, 'customer')
+        je_narration = f"Receipt {voucher_no} against {inv['voucher_no']}"
+
+        conn.execute(
+            """INSERT INTO journal_entries (voucher_id, account_id, date, debit, credit, narration)
+            VALUES (?, ?, ?, ?, 0, ?)""",
+            (rcp_id, cash_id, date_str, amount, je_narration),
+        )
+        conn.execute(
+            """INSERT INTO journal_entries (voucher_id, account_id, date, debit, credit, narration)
+            VALUES (?, ?, ?, 0, ?, ?)""",
+            (rcp_id, party_account_id, date_str, amount, je_narration),
+        )
+
+        conn.commit()
+        return True, f"Receipt {voucher_no} created for ₹{amount}.", rcp_id
+
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"[PlywoodPro] Error creating receipt: {e}")
+        traceback.print_exc()
+        return False, f"Database error: {e}", 0
+    finally:
+        conn.close()
+
+
+def get_receipts(date_from: str = '', date_to: str = '') -> list:
+    """Fetch all receipts."""
+    conn = get_connection()
+    try:
+        query = """
+            SELECT v.id, v.voucher_no, v.date, p.name as party_name,
+                   v.grand_total as amount, pm.mode, pm.reference_no
+            FROM vouchers v
+            LEFT JOIN parties p ON v.party_id = p.id
+            LEFT JOIN payments pm ON pm.voucher_id = v.id
+            WHERE v.voucher_type = 'Receipt'
+        """
+        params = []
+        if date_from:
+            query += " AND v.date >= ?"
+            params.append(date_from)
+        if date_to:
+            query += " AND v.date <= ?"
+            params.append(date_to)
+        query += " ORDER BY v.date DESC, v.id DESC"
+        rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+    except sqlite3.Error as e:
+        print(f"[PlywoodPro] Error fetching receipts: {e}")
+        return []
+    finally:
+        conn.close()

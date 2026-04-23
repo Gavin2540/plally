@@ -201,6 +201,51 @@ class SettingsUI(ctk.CTkFrame):
         self.entry_bank_account.grid(row=row, column=1, sticky="w", pady=5, padx=(0, 10))
         row += 1
 
+        # ── Section: Business Defaults ─────────────────────────────
+        row += 1
+        section_label4 = ctk.CTkLabel(
+            self.scroll_frame, text="Business Defaults",
+            font=ctk.CTkFont(size=16, weight="bold"), text_color="#2E7D32",
+        )
+        section_label4.grid(row=row, column=0, columnspan=5, sticky="w", pady=(20, 5))
+        row += 1
+
+        # Default GST Rate
+        ctk.CTkLabel(self.scroll_frame, text="Default GST Rate %").grid(
+            row=row, column=0, sticky="w", pady=5,
+        )
+        self.entry_def_gst = ctk.CTkComboBox(
+            self.scroll_frame, values=["0", "5", "12", "18", "28"], width=100,
+        )
+        self.entry_def_gst.set("18")
+        self.entry_def_gst.grid(row=row, column=1, sticky="w", pady=5, padx=(0, 10))
+
+        # Default Payment Terms (days)
+        ctk.CTkLabel(self.scroll_frame, text="Payment Terms (days)").grid(
+            row=row, column=3, sticky="w", pady=5,
+        )
+        self.entry_def_terms = ctk.CTkEntry(self.scroll_frame, width=80, placeholder_text="30")
+        self.entry_def_terms.grid(row=row, column=4, sticky="w", pady=5)
+        row += 1
+
+        # Default Godown
+        ctk.CTkLabel(self.scroll_frame, text="Default Godown").grid(
+            row=row, column=0, sticky="w", pady=5,
+        )
+        self.entry_def_godown = ctk.CTkEntry(self.scroll_frame, width=200, placeholder_text="Main Godown")
+        self.entry_def_godown.grid(row=row, column=1, sticky="w", pady=5, padx=(0, 10))
+
+        # Default Invoice Narration
+        ctk.CTkLabel(self.scroll_frame, text="Invoice Narration").grid(
+            row=row, column=3, sticky="w", pady=5,
+        )
+        self.entry_def_narration = ctk.CTkEntry(self.scroll_frame, width=250, placeholder_text="Goods sold as per invoice")
+        self.entry_def_narration.grid(row=row, column=4, sticky="ew", pady=5)
+        row += 1
+
+        # Load defaults from SettingsManager
+        self._load_defaults()
+
         # ── Action Buttons ─────────────────────────────────────────
         row += 1
         btn_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
@@ -352,6 +397,7 @@ class SettingsUI(ctk.CTkFrame):
 
         success, message = save_company(data)
         if success:
+            self._save_defaults()
             CTkMessagebox(title="Success", message=message, icon="check")
             self.is_first_run = False
             self.title_label.configure(text="⚙  Company Settings")
@@ -360,6 +406,32 @@ class SettingsUI(ctk.CTkFrame):
                 self.app.update_title_bar()
         else:
             CTkMessagebox(title="Error", message=message, icon="cancel")
+
+    def _load_defaults(self):
+        """Load business defaults from settings table into form fields."""
+        try:
+            from utils.settings_manager import get_setting
+            gst = get_setting('default_gst_rate', '18')
+            self.entry_def_gst.set(gst)
+            terms = get_setting('payment_terms_days', '')
+            self._set_entry(self.entry_def_terms, terms)
+            godown = get_setting('default_godown', '')
+            self._set_entry(self.entry_def_godown, godown)
+            narration = get_setting('default_narration', '')
+            self._set_entry(self.entry_def_narration, narration)
+        except Exception:
+            pass  # Settings not yet available
+
+    def _save_defaults(self):
+        """Persist business defaults via settings table."""
+        try:
+            from utils.settings_manager import set_setting
+            set_setting('default_gst_rate', self.entry_def_gst.get().strip() or '18')
+            set_setting('payment_terms_days', self.entry_def_terms.get().strip() or '30')
+            set_setting('default_godown', self.entry_def_godown.get().strip())
+            set_setting('default_narration', self.entry_def_narration.get().strip())
+        except Exception:
+            pass
 
     def clear_form(self):
         """Reset all form fields to empty."""

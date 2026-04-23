@@ -10,9 +10,9 @@ import sys
 
 if getattr(sys, 'frozen', False):
     # PyInstaller: put database next to the executable
-    DB_PATH = os.path.join(os.path.dirname(sys.executable), 'plywoodpro.db')
+    DB_PATH = os.environ.get('PLYWOODPRO_DB', os.path.join(os.path.dirname(sys.executable), 'plywoodpro.db'))
 else:
-    DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'plywoodpro.db')
+    DB_PATH = os.environ.get('PLYWOODPRO_DB', os.path.join(os.path.dirname(os.path.dirname(__file__)), 'plywoodpro.db'))
 
 
 def get_connection() -> sqlite3.Connection:

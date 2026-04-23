@@ -33,6 +33,8 @@ from ui.accounting_ui import AccountingUI
 from ui.gst_ui import GstUI
 from ui.dashboard import DashboardUI
 from ui.reports_ui import ReportsUI
+from ui.orders_ui import OrdersUI
+from ui.payments_ui import PaymentsUI
 
 
 # ── Appearance defaults ─────────────────────────────────────────────
@@ -303,11 +305,14 @@ class PlywoodProApp(ctk.CTk):
             self._show_reports()
         elif screen_name == "Settings":
             self._show_settings()
-        elif screen_name in (
-            "Sales Orders", "Receipts",
-            "Purchase Orders", "Payments",
-        ):
-            self._show_coming_soon(screen_name)
+        elif screen_name == "Sales Orders":
+            self._show_orders('sales')
+        elif screen_name == "Purchase Orders":
+            self._show_orders('purchase')
+        elif screen_name == "Receipts":
+            self._show_payments('receipts')
+        elif screen_name == "Payments":
+            self._show_payments('payments')
 
     def _show_dashboard(self):
         """Show the live Dashboard with KPIs and quick actions."""
@@ -371,6 +376,18 @@ class PlywoodProApp(ctk.CTk):
     def _show_reports(self):
         """Show the Reports hub screen."""
         screen = ReportsUI(self.content_area, app=self)
+        screen.pack(fill="both", expand=True)
+        self.current_screen = screen
+
+    def _show_orders(self, tab='sales'):
+        """Show the Sales/Purchase Orders screen."""
+        screen = OrdersUI(self.content_area, app=self, tab=tab)
+        screen.pack(fill="both", expand=True)
+        self.current_screen = screen
+
+    def _show_payments(self, tab='receipts'):
+        """Show the Receipts/Payments screen."""
+        screen = PaymentsUI(self.content_area, app=self, tab=tab)
         screen.pack(fill="both", expand=True)
         self.current_screen = screen
 

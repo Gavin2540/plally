@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS vouchers (
     grand_total     REAL DEFAULT 0,
     paid_amount     REAL DEFAULT 0,
     balance_due     REAL DEFAULT 0,
-    status          TEXT DEFAULT 'Draft' CHECK(status IN ('Draft','Confirmed','Cancelled','Paid','Partial')),
+    status          TEXT DEFAULT 'Draft' CHECK(status IN ('Draft','Confirmed','Converted','Cancelled','Paid','Partial')),
     godown_id       INTEGER REFERENCES godowns(id),
     transport_name  TEXT,
     vehicle_no      TEXT,

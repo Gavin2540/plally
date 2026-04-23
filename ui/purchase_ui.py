@@ -180,33 +180,28 @@ class PurchaseInvoiceUI(ctk.CTkFrame):
         totals_inner = ctk.CTkFrame(totals_frame, fg_color="transparent")
         totals_inner.pack(side="right", padx=20, pady=10)
 
-        self.subtotal_var = ctk.StringVar(value="₹ 0.00")
-        self.discount_var = ctk.StringVar(value="₹ 0.00")
-        self.taxable_var = ctk.StringVar(value="₹ 0.00")
-        self.cgst_total_var = ctk.StringVar(value="₹ 0.00")
-        self.sgst_total_var = ctk.StringVar(value="₹ 0.00")
-        self.igst_total_var = ctk.StringVar(value="₹ 0.00")
-        self.grand_total_var = ctk.StringVar(value="₹ 0.00")
-        self.words_var = ctk.StringVar(value="Rupees Zero Only")
-
-        labels = [
-            ("Subtotal:", self.subtotal_var),
-            ("Discount:", self.discount_var),
-            ("Taxable Amount:", self.taxable_var),
-            ("CGST (ITC):", self.cgst_total_var),
-            ("SGST (ITC):", self.sgst_total_var),
-            ("IGST (ITC):", self.igst_total_var),
-            ("Grand Total:", self.grand_total_var),
+        # ── Totals labels (direct text, NOT textvariable) ──────
+        labels_config = [
+            ("Subtotal:", "lbl_subtotal", 12, None),
+            ("Discount:", "lbl_discount", 12, None),
+            ("Taxable Amount:", "lbl_taxable", 12, None),
+            ("CGST (ITC):", "lbl_cgst", 12, None),
+            ("SGST (ITC):", "lbl_sgst", 12, None),
+            ("IGST (ITC):", "lbl_igst", 12, None),
+            ("Grand Total:", "lbl_grand_total", 14, "#1565C0"),
         ]
-        for i, (text, var) in enumerate(labels):
+        for i, (text, attr_name, fsize, color) in enumerate(labels_config):
             ctk.CTkLabel(totals_inner, text=text, font=ctk.CTkFont(weight="bold")).grid(
                 row=i, column=0, sticky="e", padx=(0, 10), pady=2
             )
-            font = ctk.CTkFont(size=14, weight="bold") if "Grand" in text else ctk.CTkFont(size=12)
-            color = "#1565C0" if "Grand" in text else None
-            ctk.CTkLabel(totals_inner, textvariable=var, font=font, text_color=color).grid(
-                row=i, column=1, sticky="e", pady=2
+            weight = "bold" if "Grand" in text else "normal"
+            lbl = ctk.CTkLabel(
+                totals_inner, text="₹ 0.00",
+                font=ctk.CTkFont(size=fsize, weight=weight),
+                text_color=color,
             )
+            lbl.grid(row=i, column=1, sticky="e", pady=2)
+            setattr(self, attr_name, lbl)
 
         # Narration + Amount in words
         narr_frame = ctk.CTkFrame(totals_frame, fg_color="transparent")
@@ -217,10 +212,11 @@ class PurchaseInvoiceUI(ctk.CTkFrame):
         ctk.CTkEntry(narr_frame, textvariable=self.narration_var, width=350).pack(anchor="w", pady=2)
 
         ctk.CTkLabel(narr_frame, text="Amount in Words:", font=ctk.CTkFont(weight="bold")).pack(anchor="w", pady=(10, 0))
-        ctk.CTkLabel(
-            narr_frame, textvariable=self.words_var,
+        self.lbl_amount_words = ctk.CTkLabel(
+            narr_frame, text="Rupees Zero Only",
             font=ctk.CTkFont(size=11), text_color="#1565C0", wraplength=350,
-        ).pack(anchor="w")
+        )
+        self.lbl_amount_words.pack(anchor="w")
 
         # ── Action Buttons ─────────────────────────────────────
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -475,14 +471,14 @@ class PurchaseInvoiceUI(ctk.CTkFrame):
 
         r = lambda v: float(v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
-        self.subtotal_var.set(format_inr(r(subtotal)))
-        self.discount_var.set(format_inr(r(discount)))
-        self.taxable_var.set(format_inr(r(subtotal)))
-        self.cgst_total_var.set(format_inr(r(cgst)))
-        self.sgst_total_var.set(format_inr(r(sgst)))
-        self.igst_total_var.set(format_inr(r(igst)))
-        self.grand_total_var.set(format_inr(r(grand)))
-        self.words_var.set(amount_in_words(r(grand)))
+        self.lbl_subtotal.configure(text=format_inr(r(subtotal)))
+        self.lbl_discount.configure(text=format_inr(r(discount)))
+        self.lbl_taxable.configure(text=format_inr(r(subtotal)))
+        self.lbl_cgst.configure(text=format_inr(r(cgst)))
+        self.lbl_sgst.configure(text=format_inr(r(sgst)))
+        self.lbl_igst.configure(text=format_inr(r(igst)))
+        self.lbl_grand_total.configure(text=format_inr(r(grand)))
+        self.lbl_amount_words.configure(text=amount_in_words(r(grand)))
 
     # ──────────────────────────────────────────────────────────
     #  SAVE / CONFIRM / CLEAR

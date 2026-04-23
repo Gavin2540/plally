@@ -6,6 +6,7 @@ Uses openpyxl for GSTR-1 and ITC Register exports.
 import os
 import traceback
 from pathlib import Path
+from tkinter import filedialog
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
@@ -115,7 +116,15 @@ def export_gstr1_excel(month, year):
         _auto_width(ws4)
 
         filename = f"GSTR1_{year}_{month:02d}.xlsx"
-        path = str(EXPORT_DIR / filename)
+        path = filedialog.asksaveasfilename(
+            title="Save GSTR-1 Excel",
+            initialdir=str(Path.home() / 'Documents'),
+            initialfile=filename,
+            defaultextension=".xlsx",
+            filetypes=[("Excel Files", "*.xlsx"), ("All Files", "*.*")],
+        )
+        if not path:
+            return False, "Export cancelled by user."
         wb.save(path)
         return True, path
 
@@ -150,7 +159,15 @@ def export_itc_register_excel(date_from='', date_to=''):
         for cell in ws[ws.max_row]: cell.font = TOTAL_FONT
         _auto_width(ws)
 
-        path = str(EXPORT_DIR / "ITC_Register.xlsx")
+        path = filedialog.asksaveasfilename(
+            title="Save ITC Register",
+            initialdir=str(Path.home() / 'Documents'),
+            initialfile="ITC_Register.xlsx",
+            defaultextension=".xlsx",
+            filetypes=[("Excel Files", "*.xlsx"), ("All Files", "*.*")],
+        )
+        if not path:
+            return False, "Export cancelled by user."
         wb.save(path)
         return True, path
 
@@ -181,7 +198,15 @@ def export_sales_register_excel(date_from='', date_to=''):
                 sum(_fmt(r.get('grand_total',0)) for r in rows)])
             for cell in ws[ws.max_row]: cell.font = TOTAL_FONT
         _auto_width(ws)
-        path = str(EXPORT_DIR / "Sales_Register.xlsx")
+        path = filedialog.asksaveasfilename(
+            title="Save Sales Register",
+            initialdir=str(Path.home() / 'Documents'),
+            initialfile="Sales_Register.xlsx",
+            defaultextension=".xlsx",
+            filetypes=[("Excel Files", "*.xlsx"), ("All Files", "*.*")],
+        )
+        if not path:
+            return False, "Export cancelled by user."
         wb.save(path)
         return True, path
     except Exception as e:
@@ -202,7 +227,15 @@ def export_party_outstanding_excel(party_type=''):
                        _fmt(r.get('total_invoiced')), _fmt(r.get('total_paid')),
                        _fmt(r.get('balance')), r.get('oldest_invoice_date','')])
         _auto_width(ws)
-        path = str(EXPORT_DIR / "Party_Outstanding.xlsx")
+        path = filedialog.asksaveasfilename(
+            title="Save Party Outstanding",
+            initialdir=str(Path.home() / 'Documents'),
+            initialfile="Party_Outstanding.xlsx",
+            defaultextension=".xlsx",
+            filetypes=[("Excel Files", "*.xlsx"), ("All Files", "*.*")],
+        )
+        if not path:
+            return False, "Export cancelled by user."
         wb.save(path)
         return True, path
     except Exception as e:
@@ -225,7 +258,15 @@ def export_item_profit_excel():
                        _fmt(r.get('sold_qty')), _fmt(r.get('avg_sale_rate')),
                        _fmt(r.get('gross_profit')), _fmt(r.get('margin_pct'))])
         _auto_width(ws)
-        path = str(EXPORT_DIR / "Item_Profit.xlsx")
+        path = filedialog.asksaveasfilename(
+            title="Save Item Profit Report",
+            initialdir=str(Path.home() / 'Documents'),
+            initialfile="Item_Profit.xlsx",
+            defaultextension=".xlsx",
+            filetypes=[("Excel Files", "*.xlsx"), ("All Files", "*.*")],
+        )
+        if not path:
+            return False, "Export cancelled by user."
         wb.save(path)
         return True, path
     except Exception as e:
