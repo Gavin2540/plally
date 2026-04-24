@@ -14,6 +14,7 @@ from modules.reports import (
 from utils.helpers import format_inr
 from utils.pdf_export import export_sales_register_pdf, export_purchase_register_pdf, export_party_outstanding_pdf
 from utils.excel_export import export_sales_register_excel, export_party_outstanding_excel, export_item_profit_excel
+from utils.date_picker import DatePickerEntry
 
 ACCENT = "#2E7D32"; BLUE = "#1565C0"; PURPLE = "#7B1FA2"
 
@@ -67,9 +68,9 @@ class ReportsUI(ctk.CTkFrame):
 
         f = ctk.CTkFrame(win, fg_color="transparent"); f.pack(fill="x", padx=10, pady=5)
         ctk.CTkLabel(f, text="From:").pack(side="left")
-        df = ctk.StringVar(); ctk.CTkEntry(f, textvariable=df, width=100, placeholder_text="YYYY-MM-DD").pack(side="left", padx=5)
+        df = DatePickerEntry(f, width=130); df.pack(side="left", padx=5)
         ctk.CTkLabel(f, text="To:").pack(side="left")
-        dt = ctk.StringVar(); ctk.CTkEntry(f, textvariable=dt, width=100, placeholder_text="YYYY-MM-DD").pack(side="left", padx=5)
+        dt = DatePickerEntry(f, width=130); dt.pack(side="left", padx=5)
 
         cols = ('date','invoice','party','taxable','cgst','sgst','igst','total','status')
         tree = ttk.Treeview(win, columns=cols, show='headings', height=14)
@@ -81,7 +82,7 @@ class ReportsUI(ctk.CTkFrame):
 
         def load():
             tree.delete(*tree.get_children())
-            for r in get_sales_register(df.get(), dt.get()):
+            for r in get_sales_register(df.get_date(), dt.get_date()):
                 tree.insert('','end', values=(r['date'], r['voucher_no'], r['party_name'],
                     format_inr(r.get('taxable_amount',0)), format_inr(r.get('cgst',0)),
                     format_inr(r.get('sgst',0)), format_inr(r.get('igst',0)),
@@ -90,9 +91,9 @@ class ReportsUI(ctk.CTkFrame):
         ctk.CTkButton(f, text="Load", fg_color=ACCENT, width=80, command=load).pack(side="left", padx=10)
         bf2 = ctk.CTkFrame(win, fg_color="transparent"); bf2.pack(fill="x", padx=10, pady=5)
         ctk.CTkButton(bf2, text="Export PDF", fg_color=BLUE, width=100,
-                       command=lambda: self._msg(*export_sales_register_pdf(df.get(), dt.get()))).pack(side="left", padx=5)
+                       command=lambda: self._msg(*export_sales_register_pdf(df.get_date(), dt.get_date()))).pack(side="left", padx=5)
         ctk.CTkButton(bf2, text="Export Excel", fg_color=PURPLE, width=100,
-                       command=lambda: self._msg(*export_sales_register_excel(df.get(), dt.get()))).pack(side="left", padx=5)
+                       command=lambda: self._msg(*export_sales_register_excel(df.get_date(), dt.get_date()))).pack(side="left", padx=5)
 
     def _open_purchase_reg(self):
         win = ctk.CTkToplevel(self.winfo_toplevel())
@@ -101,9 +102,9 @@ class ReportsUI(ctk.CTkFrame):
 
         f = ctk.CTkFrame(win, fg_color="transparent"); f.pack(fill="x", padx=10, pady=5)
         ctk.CTkLabel(f, text="From:").pack(side="left")
-        df = ctk.StringVar(); ctk.CTkEntry(f, textvariable=df, width=100).pack(side="left", padx=5)
+        df = DatePickerEntry(f, width=130); df.pack(side="left", padx=5)
         ctk.CTkLabel(f, text="To:").pack(side="left")
-        dt = ctk.StringVar(); ctk.CTkEntry(f, textvariable=dt, width=100).pack(side="left", padx=5)
+        dt = DatePickerEntry(f, width=130); dt.pack(side="left", padx=5)
 
         cols = ('date','invoice','party','taxable','cgst','sgst','igst','total','status')
         tree = ttk.Treeview(win, columns=cols, show='headings', height=14)
@@ -115,7 +116,7 @@ class ReportsUI(ctk.CTkFrame):
 
         def load():
             tree.delete(*tree.get_children())
-            for r in get_purchase_register(df.get(), dt.get()):
+            for r in get_purchase_register(df.get_date(), dt.get_date()):
                 tree.insert('','end', values=(r['date'], r['voucher_no'], r['party_name'],
                     format_inr(r.get('taxable_amount',0)), format_inr(r.get('cgst',0)),
                     format_inr(r.get('sgst',0)), format_inr(r.get('igst',0)),
@@ -124,7 +125,7 @@ class ReportsUI(ctk.CTkFrame):
         ctk.CTkButton(f, text="Load", fg_color=ACCENT, width=80, command=load).pack(side="left", padx=10)
         bf2 = ctk.CTkFrame(win, fg_color="transparent"); bf2.pack(fill="x", padx=10, pady=5)
         ctk.CTkButton(bf2, text="Export PDF", fg_color=BLUE, width=100,
-                       command=lambda: self._msg(*export_purchase_register_pdf(df.get(), dt.get()))).pack(side="left", padx=5)
+                       command=lambda: self._msg(*export_purchase_register_pdf(df.get_date(), dt.get_date()))).pack(side="left", padx=5)
 
     def _open_party_os(self):
         win = ctk.CTkToplevel(self.winfo_toplevel())

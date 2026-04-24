@@ -17,6 +17,7 @@ from utils.helpers import format_inr
 from utils.pdf_export import (
     export_ledger_pdf, export_trial_balance_pdf, export_pl_pdf, export_bs_pdf,
 )
+from utils.date_picker import DatePickerEntry
 
 ACCENT = "#2E7D32"
 BLUE = "#1565C0"
@@ -63,12 +64,12 @@ class AccountingUI(ctk.CTkFrame):
         if anames: self.led_acc.set(anames[0])
 
         ctk.CTkLabel(f, text="From:").pack(side="left", padx=(15,0))
-        self.led_from = ctk.StringVar()
-        ctk.CTkEntry(f, textvariable=self.led_from, width=100, placeholder_text="YYYY-MM-DD").pack(side="left", padx=5)
+        self.led_from = DatePickerEntry(f, width=130)
+        self.led_from.pack(side="left", padx=5)
 
         ctk.CTkLabel(f, text="To:").pack(side="left")
-        self.led_to = ctk.StringVar()
-        ctk.CTkEntry(f, textvariable=self.led_to, width=100, placeholder_text="YYYY-MM-DD").pack(side="left", padx=5)
+        self.led_to = DatePickerEntry(f, width=130)
+        self.led_to.pack(side="left", padx=5)
 
         ctk.CTkButton(f, text="View", fg_color=ACCENT, width=80, command=self._view_ledger).pack(side="left", padx=5)
         ctk.CTkButton(f, text="Export PDF", fg_color=BLUE, width=100, command=self._export_ledger).pack(side="left", padx=5)
@@ -97,7 +98,7 @@ class AccountingUI(ctk.CTkFrame):
         acc = self._get_selected_account()
         if not acc: return
         self.led_tree.delete(*self.led_tree.get_children())
-        rows = get_ledger(acc['id'], self.led_from.get(), self.led_to.get())
+        rows = get_ledger(acc['id'], self.led_from.get_date(), self.led_to.get_date())
         for r in rows:
             self.led_tree.insert('','end', values=(
                 r['date'], r['voucher_no'], r['voucher_type'], r['narration'],
@@ -108,7 +109,7 @@ class AccountingUI(ctk.CTkFrame):
     def _export_ledger(self):
         acc = self._get_selected_account()
         if not acc: return
-        ok, result = export_ledger_pdf(acc['id'], acc['name'], self.led_from.get(), self.led_to.get())
+        ok, result = export_ledger_pdf(acc['id'], acc['name'], self.led_from.get_date(), self.led_to.get_date())
         if ok:
             CTkMessagebox(title="Success", message=f"PDF exported: {result}", icon="check")
         else:
@@ -122,8 +123,8 @@ class AccountingUI(ctk.CTkFrame):
         hdr.pack(fill="x", padx=10, pady=5)
 
         ctk.CTkLabel(hdr, text="Date:").pack(side="left")
-        self.jv_date = ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
-        ctk.CTkEntry(hdr, textvariable=self.jv_date, width=110).pack(side="left", padx=5)
+        self.jv_date = DatePickerEntry(hdr, width=130)
+        self.jv_date.pack(side="left", padx=5)
 
         ctk.CTkLabel(hdr, text="Narration:").pack(side="left", padx=(15,0))
         self.jv_narr = ctk.StringVar()
@@ -217,7 +218,7 @@ class AccountingUI(ctk.CTkFrame):
         tcr = sum(e['credit'] for e in self.jv_entries)
         if abs(tdr - tcr) > 0.01:
             CTkMessagebox(title="Error", message=f"Debits ({tdr}) != Credits ({tcr})", icon="cancel"); return
-        ok, msg, vid = create_journal_voucher(self.jv_date.get(), self.jv_narr.get(), self.jv_entries)
+        ok, msg, vid = create_journal_voucher(self.jv_date.get_date(), self.jv_narr.get(), self.jv_entries)
         if ok:
             CTkMessagebox(title="Success", message=msg, icon="check")
             self.jv_entries.clear(); self._jv_refresh()
@@ -231,8 +232,8 @@ class AccountingUI(ctk.CTkFrame):
         f = ctk.CTkFrame(tab, fg_color="transparent")
         f.pack(fill="x", padx=10, pady=5)
         ctk.CTkLabel(f, text="Date:").pack(side="left")
-        self.db_date = ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
-        ctk.CTkEntry(f, textvariable=self.db_date, width=110).pack(side="left", padx=5)
+        self.db_date = DatePickerEntry(f, width=130)
+        self.db_date.pack(side="left", padx=5)
         ctk.CTkButton(f, text="View", fg_color=ACCENT, width=80, command=self._view_daybook).pack(side="left", padx=5)
 
         cols = ('voucher','type','party','amount','status','narration')
@@ -247,7 +248,7 @@ class AccountingUI(ctk.CTkFrame):
 
     def _view_daybook(self):
         self.db_tree.delete(*self.db_tree.get_children())
-        rows = get_day_book(self.db_date.get())
+        rows = get_day_book(self.db_date.get_date())
         for r in rows:
             self.db_tree.insert('','end', values=(
                 r['voucher_no'], r['voucher_type'], r.get('party_name',''),

@@ -18,6 +18,7 @@ import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 from db.connection import get_connection
 from db.init_db import init_database
+from utils.backup_manager import auto_backup_on_startup
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("green")
@@ -156,6 +157,7 @@ class LoginWindow(ctk.CTk):
             # First run — show settings wizard
             self._show_first_run_setup()
         else:
+            auto_backup_on_startup()
             self._launch_main()
 
     def _show_first_run_setup(self):

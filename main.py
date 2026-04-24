@@ -405,20 +405,14 @@ class PlywoodProApp(ctk.CTk):
             self.login_window.attempts = 0
 
     def _backup_db(self):
-        """Copy plywoodpro.db to backups/ with timestamp."""
-        import shutil
-        from datetime import datetime
+        """Create a manual database backup."""
         from CTkMessagebox import CTkMessagebox
-        src = os.path.join(PROJECT_ROOT, "plywoodpro.db")
-        bak_dir = os.path.join(PROJECT_ROOT, "backups")
-        os.makedirs(bak_dir, exist_ok=True)
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        dst = os.path.join(bak_dir, f"plywoodpro_{ts}.db")
-        try:
-            shutil.copy2(src, dst)
-            CTkMessagebox(title="Backup", message=f"Backup saved:\n{dst}", icon="check")
-        except Exception as e:
-            CTkMessagebox(title="Error", message=str(e), icon="cancel")
+        from utils.backup_manager import manual_backup
+        success, message = manual_backup()
+        if success:
+            CTkMessagebox(title="Backup Complete", message=message, icon="check")
+        else:
+            CTkMessagebox(title="Backup Failed", message=message, icon="cancel")
 
     def _change_password(self):
         """Open change password dialog."""

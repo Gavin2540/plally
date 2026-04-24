@@ -6,6 +6,7 @@ amount in words, and Save Draft / Confirm & Print / Cancel buttons.
 
 import customtkinter as ctk
 from tkinter import ttk
+import tkinter as tk
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime
 import traceback
@@ -20,6 +21,7 @@ from modules.sales import (
 from utils.helpers import format_inr, amount_in_words
 from utils.gst_engine import calculate_tax_split, is_intra_state
 from utils.pdf_export import export_invoice_pdf
+from utils.date_picker import DatePickerEntry
 
 
 ACCENT = "#2E7D32"
@@ -80,12 +82,13 @@ class SalesInvoiceUI(ctk.CTkFrame):
         self.party_combo.pack(side="left", padx=(5, 20))
 
         ctk.CTkLabel(r1, text="Date:").pack(side="left")
-        self.date_var = ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
-        ctk.CTkEntry(r1, textvariable=self.date_var, width=120).pack(side="left", padx=(5, 20))
+        self.date_entry = DatePickerEntry(r1, width=130)
+        self.date_entry.pack(side="left", padx=(5, 20))
+        self.date_entry.set_date(datetime.now().strftime("%Y-%m-%d"))
 
         ctk.CTkLabel(r1, text="Due Date:").pack(side="left")
-        self.due_date_var = ctk.StringVar()
-        ctk.CTkEntry(r1, textvariable=self.due_date_var, width=120).pack(side="left", padx=5)
+        self.due_date_entry = DatePickerEntry(r1, width=130)
+        self.due_date_entry.pack(side="left", padx=5)
 
         # Row 2: Godown, Reference
         r2 = ctk.CTkFrame(header, fg_color="transparent")
@@ -130,6 +133,7 @@ class SalesInvoiceUI(ctk.CTkFrame):
         self.item_var = ctk.StringVar()
         self.item_combo = ctk.CTkComboBox(
             add_row_frame, variable=self.item_var, width=250,
+            command=self._on_item_selected,
         )
         self.item_combo.pack(side="left", padx=5)
 
@@ -266,7 +270,6 @@ class SalesInvoiceUI(ctk.CTkFrame):
         self.item_combo.configure(values=item_names)
         if item_names:
             self.item_combo.set(item_names[0])
-            # Pre-fill rate from item's sale_rate
             self.rate_var.set(str(self.item_list[0].get('sale_rate', 0)))
 
         # Godowns
@@ -276,6 +279,16 @@ class SalesInvoiceUI(ctk.CTkFrame):
         if godown_names:
             self.godown_combo.set(godown_names[0])
 
+    def _on_item_selected(self, selected_value):
+        """Called when user selects an item from the dropdown. Auto-fills rate."""
+        self.item_list = get_all_items()
+        val_lower = selected_value.strip().lower()
+        for i in self.item_list:
+            display = f"{i['name']} [{i['hsn_code']}]"
+            if display.strip().lower() == val_lower:
+                self.rate_var.set(str(i.get('sale_rate', 0)))
+                return
+
     def _get_selected_party(self) -> dict | None:
         name = self.party_var.get()
         for p in self.party_list:
@@ -284,10 +297,33 @@ class SalesInvoiceUI(ctk.CTkFrame):
         return None
 
     def _get_selected_item(self) -> dict | None:
-        val = self.item_var.get()
+        val = self.item_var.get().strip()
+        if not val:
+            return None
+        # Reload items fresh from DB every time to avoid stale list
+        self.item_list = get_all_items()
+        val_lower = val.lower()
+        # Pass 1: exact display match
         for i in self.item_list:
             display = f"{i['name']} [{i['hsn_code']}]"
-            if display == val:
+            if display.strip().lower() == val_lower:
+                return i
+        # Pass 2: item name is contained in typed value
+        for i in self.item_list:
+            if i['name'].lower() in val_lower:
+                return i
+        # Pass 3: typed value is contained in item name
+        for i in self.item_list:
+            if val_lower in i['name'].lower():
+                return i
+        # Pass 4: HSN match
+        for i in self.item_list:
+            if val_lower in i['hsn_code'].lower():
+                return i
+        # Pass 5: check if val matches any part of display string
+        for i in self.item_list:
+            display = f"{i['name']} [{i['hsn_code']}]".lower()
+            if any(word in display for word in val_lower.split() if len(word) > 2):
                 return i
         return None
 
@@ -332,7 +368,14 @@ class SalesInvoiceUI(ctk.CTkFrame):
         """Add a line item to the table."""
         item = self._get_selected_item()
         if not item:
-            CTkMessagebox(title="Error", message="Please select an item.", icon="cancel")
+            self.item_list = get_all_items()
+            available = [f"• {i['name']} [{i['hsn_code']}]" for i in self.item_list[:8]]
+            suffix = f"\n...and {len(self.item_list)-8} more" if len(self.item_list) > 8 else ""
+            msg = (
+                "Item not recognised. Please select from the dropdown.\n\n"
+                f"Available items:\n" + "\n".join(available) + suffix
+            ) if available else "No items found. Please add items in Masters → Items first."
+            CTkMessagebox(title="Item Not Found", message=msg, icon="warning")
             return
 
         try:
@@ -506,8 +549,6 @@ class SalesInvoiceUI(ctk.CTkFrame):
         """Validate the invoice form before saving."""
         if not self._get_selected_party():
             return False, "Please select a party."
-        if not self.date_var.get():
-            return False, "Please enter a date."
         if not self.line_items:
             return False, "Add at least one line item."
         return True, ""
@@ -517,8 +558,8 @@ class SalesInvoiceUI(ctk.CTkFrame):
         party = self._get_selected_party()
         return {
             'party_id': party['id'] if party else 0,
-            'date': self.date_var.get(),
-            'due_date': self.due_date_var.get(),
+            'date': self.date_entry.get_date(),
+            'due_date': self.due_date_entry.get_date(),
             'reference_no': self.ref_var.get(),
             'narration': self.narration_var.get(),
             'godown_id': self._get_selected_godown_id(),
@@ -580,8 +621,8 @@ class SalesInvoiceUI(ctk.CTkFrame):
 
     def clear_form(self):
         """Reset all form fields to defaults."""
-        self.date_var.set(datetime.now().strftime("%Y-%m-%d"))
-        self.due_date_var.set("")
+        self.date_entry.set_today()
+        self.due_date_entry.set_today()
         self.ref_var.set("")
         self.transport_var.set("")
         self.vehicle_var.set("")

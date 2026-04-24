@@ -15,6 +15,7 @@ from modules.inventory import (
     create_godown_transfer, ADJUSTMENT_REASONS,
 )
 from utils.helpers import format_inr
+from utils.date_picker import DatePickerEntry
 
 ACCENT = "#2E7D32"
 ACCENT_HOVER = "#1B5E20"
@@ -118,8 +119,8 @@ class InventoryUI(ctk.CTkFrame):
         if snames: self.grn_party.set(snames[0])
 
         ctk.CTkLabel(hdr, text="Date:").pack(side="left", padx=(15,0))
-        self.grn_date = ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
-        ctk.CTkEntry(hdr, textvariable=self.grn_date, width=110).pack(side="left", padx=5)
+        self.grn_date = DatePickerEntry(hdr, width=130)
+        self.grn_date.pack(side="left", padx=5)
 
         ctk.CTkLabel(hdr, text="Ref:").pack(side="left", padx=(15,0))
         self.grn_ref = ctk.StringVar()
@@ -215,7 +216,7 @@ class InventoryUI(ctk.CTkFrame):
         for g in self.godowns:
             if g['name'] == self.grn_godown.get(): gid = g['id']; break
 
-        header = {'party_id': party['id'] if party else None, 'date': self.grn_date.get(),
+        header = {'party_id': party['id'] if party else None, 'date': self.grn_date.get_date(),
                   'reference_no': self.grn_ref.get(), 'narration': 'GRN', 'godown_id': gid}
         ok, msg, vid = create_grn(header, self.grn_lines)
         if ok:

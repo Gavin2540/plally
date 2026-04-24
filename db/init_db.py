@@ -10,6 +10,7 @@ import sys
 import hashlib
 import sqlite3
 from db.connection import get_connection
+from db.migrate import run_migrations
 
 
 def _get_base_path():
@@ -103,6 +104,7 @@ def init_database():
                 ('admin', admin_hash, 'Administrator', 'Admin'),
             )
 
+        run_migrations(conn)
         conn.commit()
         print("[PlywoodPro] Database initialized successfully.")
 

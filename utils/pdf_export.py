@@ -8,6 +8,7 @@ import os
 import traceback
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
+import tkinter as tk
 from tkinter import filedialog
 
 from reportlab.lib import colors
@@ -44,6 +45,33 @@ def _r2(val: Decimal) -> float:
     return float(val.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
+def _ask_save_location(default_filename: str, filetype: str = "pdf") -> str | None:
+    """Show file save dialog. Returns chosen path or None if cancelled."""
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes('-topmost', True)
+
+    if filetype == "pdf":
+        filetypes = [("PDF Files", "*.pdf"), ("All Files", "*.*")]
+        ext = ".pdf"
+    else:
+        filetypes = [("Excel Files", "*.xlsx"), ("All Files", "*.*")]
+        ext = ".xlsx"
+
+    initial_dir = os.path.expanduser("~/Documents")
+
+    path = filedialog.asksaveasfilename(
+        title="Save File",
+        initialdir=initial_dir,
+        initialfile=default_filename,
+        defaultextension=ext,
+        filetypes=filetypes,
+        parent=root
+    )
+    root.destroy()
+    return path if path else None
+
+
 # ═══════════════════════════════════════════════════════════════════════
 #  BUILD INVOICE PDF
 # ═══════════════════════════════════════════════════════════════════════
@@ -78,24 +106,13 @@ def export_invoice_pdf(voucher_id: int) -> tuple[bool, str]:
         if not company:
             return False, "Company details not set up."
 
-        # Ensure exports directory exists
-        os.makedirs(EXPORTS_DIR, exist_ok=True)
-
         # Build default filename
         safe_no = v['voucher_no'].replace('/', '-').replace('\\', '-')
         filename = f"{safe_no}.pdf"
 
-        # Ask user where to save (defaults to Documents)
-        default_dir = str(Path.home() / 'Documents')
-        filepath = filedialog.asksaveasfilename(
-            title="Save Invoice PDF",
-            initialdir=default_dir,
-            initialfile=filename,
-            defaultextension=".pdf",
-            filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")],
-        )
+        filepath = _ask_save_location(filename, "pdf")
         if not filepath:
-            return False, "Export cancelled by user."
+            return False, "Export cancelled."
 
         # Build the PDF
         _build_pdf(filepath, v, party, items, company)
@@ -393,10 +410,10 @@ def _report_styles():
     return styles
 
 
-def _save_and_open(doc, story, filename):
-    export_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / "exports"
-    export_dir.mkdir(exist_ok=True)
-    path = str(export_dir / filename)
+def _save_and_open(story, filename):
+    path = _ask_save_location(filename, "pdf")
+    if not path:
+        return None
     doc = SimpleDocTemplate(path, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm,
                             topMargin=15*mm, bottomMargin=15*mm)
     doc.build(story)
@@ -440,7 +457,9 @@ def export_ledger_pdf(account_id, account_name, date_from='', date_to=''):
             ('ALIGN', (4,0), (-1,-1), 'RIGHT'),
         ]))
         story.append(t)
-        path = _save_and_open(None, story, f"Ledger_{account_name.replace(' ','_')}.pdf")
+        path = _save_and_open(story, f"Ledger_{account_name.replace(' ','_')}.pdf")
+        if not path:
+            return False, "Export cancelled."
         return True, path
     except Exception as e:
         traceback.print_exc()
@@ -477,7 +496,9 @@ def export_trial_balance_pdf(date_from='', date_to=''):
             ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
         ]))
         story.append(t)
-        path = _save_and_open(None, story, "Trial_Balance.pdf")
+        path = _save_and_open(story, "Trial_Balance.pdf")
+        if not path:
+            return False, "Export cancelled."
         return True, path
     except Exception as e:
         traceback.print_exc()
@@ -514,7 +535,9 @@ def export_pl_pdf(date_from='', date_to=''):
             ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
         ]))
         story.append(t)
-        path = _save_and_open(None, story, "Profit_and_Loss.pdf")
+        path = _save_and_open(story, "Profit_and_Loss.pdf")
+        if not path:
+            return False, "Export cancelled."
         return True, path
     except Exception as e:
         traceback.print_exc()
@@ -551,7 +574,9 @@ def export_bs_pdf(as_of=''):
             ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
         ]))
         story.append(t)
-        path = _save_and_open(None, story, "Balance_Sheet.pdf")
+        path = _save_and_open(story, "Balance_Sheet.pdf")
+        if not path:
+            return False, "Export cancelled."
         return True, path
     except Exception as e:
         traceback.print_exc()
@@ -592,7 +617,9 @@ def export_sales_register_pdf(date_from='', date_to=''):
             ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
         ]))
         story.append(t)
-        path = _save_and_open(None, story, "Sales_Register.pdf")
+        path = _save_and_open(story, "Sales_Register.pdf")
+        if not path:
+            return False, "Export cancelled."
         return True, path
     except Exception as e:
         traceback.print_exc()
@@ -625,7 +652,9 @@ def export_purchase_register_pdf(date_from='', date_to=''):
             ('ALIGN', (3,0), (-1,-1), 'RIGHT'),
         ]))
         story.append(t)
-        path = _save_and_open(None, story, "Purchase_Register.pdf")
+        path = _save_and_open(story, "Purchase_Register.pdf")
+        if not path:
+            return False, "Export cancelled."
         return True, path
     except Exception as e:
         traceback.print_exc()
@@ -657,7 +686,9 @@ def export_party_outstanding_pdf(party_type=''):
             ('ALIGN', (2,0), (4,-1), 'RIGHT'),
         ]))
         story.append(t)
-        path = _save_and_open(None, story, "Party_Outstanding.pdf")
+        path = _save_and_open(story, "Party_Outstanding.pdf")
+        if not path:
+            return False, "Export cancelled."
         return True, path
     except Exception as e:
         traceback.print_exc()
