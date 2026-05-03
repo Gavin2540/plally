@@ -48,6 +48,8 @@ class SalesInvoiceUI(ctk.CTkFrame):
         self.godown_list = []
         self.company = get_company()
         self.line_items = []  # List of dicts for the treeview
+        self._selected_item_id = None
+        self._rate_manually_edited = False
         self._build_ui()
         self._load_dropdowns()
 
@@ -143,7 +145,9 @@ class SalesInvoiceUI(ctk.CTkFrame):
 
         ctk.CTkLabel(add_row_frame, text="Rate:").pack(side="left")
         self.rate_var = ctk.StringVar(value="0")
-        ctk.CTkEntry(add_row_frame, textvariable=self.rate_var, width=90).pack(side="left", padx=5)
+        self.rate_entry = ctk.CTkEntry(add_row_frame, textvariable=self.rate_var, width=90)
+        self.rate_entry.pack(side="left", padx=5)
+        self.rate_entry.bind("<KeyRelease>", self._mark_rate_edited)
 
         ctk.CTkLabel(add_row_frame, text="Disc%:").pack(side="left")
         self.disc_var = ctk.StringVar(value="0")
@@ -270,7 +274,7 @@ class SalesInvoiceUI(ctk.CTkFrame):
         self.item_combo.configure(values=item_names)
         if item_names:
             self.item_combo.set(item_names[0])
-            self.rate_var.set(str(self.item_list[0].get('sale_rate', 0)))
+            self._on_item_selected(item_names[0])
 
         # Godowns
         self.godown_list = get_all_godowns()
@@ -286,8 +290,17 @@ class SalesInvoiceUI(ctk.CTkFrame):
         for i in self.item_list:
             display = f"{i['name']} [{i['hsn_code']}]"
             if display.strip().lower() == val_lower:
-                self.rate_var.set(str(i.get('sale_rate', 0)))
+                self._selected_item_id = i.get('id')
+                current_rate = self.rate_var.get().strip()
+                if (not self._rate_manually_edited) or current_rate in ("", "0", "0.0"):
+                    self.rate_var.set(str(i.get('sale_rate', 0)))
+                    self._rate_manually_edited = False
                 return
+        self._selected_item_id = None
+
+    def _mark_rate_edited(self, _event=None):
+        """Track user-typed rate to avoid accidental auto-overwrite."""
+        self._rate_manually_edited = True
 
     def _get_selected_party(self) -> dict | None:
         name = self.party_var.get()
@@ -299,9 +312,22 @@ class SalesInvoiceUI(ctk.CTkFrame):
     def _get_selected_item(self) -> dict | None:
         val = self.item_var.get().strip()
         if not val:
+            # In some CTk versions item_var is stale; fallback to combobox text.
+            val = self.item_combo.get().strip()
+        if not val:
+            # Final fallback: use last selected id tracked by callback.
+            if self._selected_item_id:
+                self.item_list = get_all_items()
+                for i in self.item_list:
+                    if i.get('id') == self._selected_item_id:
+                        return i
             return None
         # Reload items fresh from DB every time to avoid stale list
         self.item_list = get_all_items()
+        if self._selected_item_id:
+            for i in self.item_list:
+                if i.get('id') == self._selected_item_id:
+                    return i
         val_lower = val.lower()
         # Pass 1: exact display match
         for i in self.item_list:
@@ -440,6 +466,7 @@ class SalesInvoiceUI(ctk.CTkFrame):
         # Pre-fill next item rate
         self.qty_var.set("1")
         self.disc_var.set("0")
+        self._rate_manually_edited = False
 
     def _delete_row(self):
         """Delete selected row from the table."""
@@ -630,6 +657,7 @@ class SalesInvoiceUI(ctk.CTkFrame):
         self.qty_var.set("1")
         self.rate_var.set("0")
         self.disc_var.set("0")
+        self._rate_manually_edited = False
         self.line_items.clear()
         self._refresh_tree()
         self._recalc_totals()

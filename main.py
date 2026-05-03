@@ -314,6 +314,10 @@ class PlywoodProApp(ctk.CTk):
         elif screen_name == "Payments":
             self._show_payments('payments')
 
+    def show_screen(self, screen_name: str):
+        """Public navigation method called by child screens like Dashboard."""
+        self._navigate_to(screen_name)
+
     def _show_dashboard(self):
         """Show the live Dashboard with KPIs and quick actions."""
         screen = DashboardUI(self.content_area, app=self)

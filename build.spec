@@ -7,7 +7,7 @@ block_cipher = None
 # Collect ALL data files for UI packages
 ctk_datas = collect_data_files('customtkinter', include_py_files=False)
 ctkmsg_datas = collect_data_files('CTkMessagebox', include_py_files=False)
-tkcal_datas = collect_data_files('tkcalendar', include_py_files=False) if True else []
+
 
 a = Analysis(
     ['ui/login.py'],
@@ -35,9 +35,7 @@ a = Analysis(
         'openpyxl.styles',
         'openpyxl.utils',
         'sqlite3',
-        'tkcalendar',
-        'babel.numbers',
-        'babel.dates',
+
         'PIL',
         'PIL.Image',
         'PIL.ImageTk',
