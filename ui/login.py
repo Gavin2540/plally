@@ -19,6 +19,7 @@ from CTkMessagebox import CTkMessagebox
 from db.connection import get_connection
 from db.init_db import init_database
 from utils.backup_manager import auto_backup_on_startup
+from utils.updater import check_for_updates_async, download_and_apply_update, CURRENT_VERSION
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("green")
@@ -192,6 +193,45 @@ class LoginWindow(ctk.CTk):
         """Launch the main PlywoodPro application."""
         from main import PlywoodProApp
         app = PlywoodProApp(login_window=self, logged_in_user=self.logged_in_user)
+        
+        def _on_update_available(version: str, url: str):
+            """
+            Called from background thread when newer version found on GitHub.
+            Uses app.after() to safely schedule the popup on the main tkinter thread.
+            Waits 4 seconds after login so the dashboard has time to fully load first.
+            """
+            def _show_update_prompt():
+                try:
+                    from CTkMessagebox import CTkMessagebox
+                    msg = CTkMessagebox(
+                        title="Update Available",
+                        message=(
+                            f"A new version of PlywoodPro is available!\n\n"
+                            f"Current version:  {CURRENT_VERSION}\n"
+                            f"New version:      {version}\n\n"
+                            f"Download and install now?\n"
+                            f"The app will restart automatically.\n"
+                            f"Your business data will not be affected."
+                        ),
+                        icon="info",
+                        option_1="Update Now",
+                        option_2="Remind Me Later"
+                    )
+                    if msg.get() == "Update Now":
+                        CTkMessagebox(
+                            title="Downloading Update",
+                            message="Downloading update. The app will restart when complete.\nPlease wait and do not close the app.",
+                            icon="info",
+                            option_1="OK"
+                        )
+                        download_and_apply_update(url)
+                except Exception as e:
+                    print(f"[Updater] UI error: {e}")
+
+            app.after(4000, _show_update_prompt)
+
+        check_for_updates_async(_on_update_available)
+        
         app.mainloop()
 
 
