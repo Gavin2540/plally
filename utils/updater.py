@@ -12,7 +12,7 @@ import subprocess
 import threading
 
 GITHUB_REPO = "Gavin2540/plally"
-CURRENT_VERSION = "1.2.0"
+CURRENT_VERSION = "1.0.0"
 API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 DOWNLOAD_FILENAME = "PlywoodPro_update.zip"
 
